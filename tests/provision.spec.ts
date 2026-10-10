@@ -4,7 +4,6 @@ import { delimiter, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DEFAULT_PROFILE,
-  ROW_ID,
   SERVICE_LABEL,
   dshHome,
   envCredentials,
@@ -304,10 +303,11 @@ describe('profile build policy', () => {
 })
 
 describe('onboarding detection', () => {
-  it('recognizes this plugin\'s section, and only at the top level', () => {
-    expect(hasCredentialSection(`${ROW_ID}:\n  appId: cli_x\n`)).toBe(true)
-    expect(hasCredentialSection(`llm-deepseek:\n  thinking: enabled\n${ROW_ID}:\n`)).toBe(true)
-    expect(hasCredentialSection('llm-deepseek:\n  note: lark-channel is not configured\n')).toBe(false)
+  it('recognizes this plugin\'s credential reference, at any indentation', () => {
+    expect(hasCredentialSection('version: 1\nrefs:\n  LARK_APP_SECRET: s\n')).toBe(true)
+    expect(hasCredentialSection('version: 1\nrefs:\n  LARK_APP_SECRET_SUPPORT: s\n', 'LARK_APP_SECRET_SUPPORT')).toBe(true)
+    expect(hasCredentialSection('version: 1\nrefs:\n  DEEPSEEK_API_KEY: s\n')).toBe(false)
+    expect(hasCredentialSection('version: 1\nrefs:\n  note: LARK_APP_SECRET is not stored\n')).toBe(false)
     expect(hasCredentialSection('')).toBe(false)
   })
 
@@ -327,14 +327,18 @@ describe('onboarding detection', () => {
     expect(isOnboarded()).toBe(true)
   })
 
-  it('reads the settings document under the configured home', () => {
+  it('reads the credentials document under the configured home', () => {
     const home = mkdtempSync(join(tmpdir(), 'home-'))
     delete process.env.LARK_APP_ID
     delete process.env.LARK_APP_SECRET
     process.env.DSH_HOME = home
     expect(dshHome()).toBe(home)
     expect(isOnboarded()).toBe(false)
-    writeFileSync(join(home, 'settings.yaml'), `${ROW_ID}:\n  appId: cli_x\n`)
+    // A named row's secret is its own reference, so the unnamed row stays due.
+    writeFileSync(join(home, '.credentials.yaml'), 'version: 1\nrefs:\n  LARK_APP_SECRET_SUPPORT: s\n')
+    expect(isOnboarded()).toBe(false)
+    expect(isOnboarded('support')).toBe(true)
+    writeFileSync(join(home, '.credentials.yaml'), 'version: 1\nrefs:\n  LARK_APP_SECRET: s\n')
     expect(isOnboarded()).toBe(true)
   })
 })

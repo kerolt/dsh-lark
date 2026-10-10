@@ -11,6 +11,7 @@ import { createFakePresets, fakeMessage, mountChannel } from './harness.ts'
 import { channelOptions } from '../src/runtime.ts'
 import type { ChannelConfig } from '../src/runtime.ts'
 import { resolveConfig } from '../src/config.ts'
+import type { PlainConfig } from '../src/config.ts'
 import { resolveAuthorization } from '../src/authorization.ts'
 import type { LoggedLine } from './harness.ts'
 
@@ -379,7 +380,7 @@ describe('durable sessions', () => {
 describe('transport options', () => {
   /** One resolved deployment, with the credentials the transport needs. */
   const deployment = (overrides: Record<string, unknown> = {}): ChannelConfig =>
-    resolveConfig({ appId: 'cli_test', appSecret: 'secret', ...overrides }) as ChannelConfig
+    resolveConfig({ appId: 'cli_test', appSecret: 'secret', ...overrides } as unknown as PlainConfig) as ChannelConfig
 
   it('closes the merge window, whatever a conversation is', () => {
     // The transport merges a chat's burst into `{...last, content: joined}` —

@@ -153,7 +153,10 @@ dsh web
 - `instance` names an extra bot row; the first stays unnamed, which keeps its settings and sessions exactly where they are.
 - `botPeers` restricts which bots are answered; `botHops` bounds consecutive bot turns (six).
 - A card that changes state is bound to the chat it was sent to: forwarded elsewhere, it governs nothing.
-- Where the deployment composes a credentials service, the scanned app secret is stored there; one written into settings by an older version moves on the next boot.
+- Where the deployment composes a credentials service, the scanned app secret is stored there and the profile keeps only the `appSecretRef` name plus the scanner's open id (`registeredBy`, recorded for reference; it narrows nothing); without one, the secret stays in the profile document itself, readable by anyone who can read that file, and the console says so. A secret written straight into the configuration by an older version moves behind its reference on the next boot, leaving the field blanked.
+- Everything that changes state — the `appId` a scan registered, and each conversation's `/cd`, `/model`, `/new`, and `/session` — goes back into the profile's own `cordis.patch.yml` through the `settings` service, so it survives a restart. Those fields are declared `volatile` in the schema, which is what makes a write take effect in the running process too.
+- Upgraded from a settings.yaml-era DSH: the host imports that document into the profile on the first boot, and the channel waits out the import before deciding whether onboarding is needed — stored app credentials keep working.
+- Configuration is read at boot; a hand edit needs a restart.
 - Image input is off by default: turn on `attachImages` only for a model you know accepts images.
 - `receiveFiles` is on by default: inbound files land under `.dsh-lark/inbox/<timestamp>-<message hash>/` in the conversation's workspace and are never cleaned up automatically — that's on you. The first file into a workspace prompts a suggestion to add `.dsh-lark/` to `.gitignore`, but the channel never edits that file itself.
 - `sendFiles` is on by default too: a direct message sends straight through, a group shows an approval card on every send — carrying where the file sits inside the workspace, the workspace's own name, and the size, rather than an absolute host path everyone in the room would read. There is no setting to turn that group approval off, since it would be an official back door for a prompt-injection exfiltration chain.
@@ -162,7 +165,6 @@ dsh web
 - Settled approval cards record who decided: when the callback omits a name, the channel best-effort resolves it from the current chat roster. Missing roster permission, lookup failures, or departed members safely show the open id instead and never block approval or file delivery.
 - The single-file ceiling defaults to 20 MiB, set separately for each direction with `maxReceiveFileBytes` and `maxSendFileBytes`; documents (pdf / xlsx / docx) only ever arrive as a download with no online preview, because the upstream SDK uploads every general file as the `stream` type instead of inferring one from the extension.
 - Voice messages land on disk like any other file; nothing transcribes them.
-- Configuration is read at startup; changing it needs a restart.
 
 </details>
 
@@ -181,6 +183,14 @@ pnpm install
 pnpm test
 pnpm build
 ```
+
+The unit suite's `settings` service is a stand-in this repository wrote itself, so an API the deployment no longer has leaves every test green. To check persistence against an installed DSH:
+
+```sh
+pnpm run e2e:settings
+```
+
+It copies `$DSH_HOME/profiles/lark` into a temporary home, stages this checkout's build as the plugin package, boots the profile with a stubbed transport, and holds the result to what a scan is supposed to leave behind: the `appId` and the credential reference in the profile patch, the secret in `.credentials.yaml`, a second boot that does not ask for another scan, and an upgraded home whose `settings.yaml` import connects without one either. The real profile and the real bot are untouched.
 
 ## License
 

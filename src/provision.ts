@@ -32,6 +32,7 @@ import { homedir, userInfo } from 'node:os'
 import { delimiter, dirname, join, resolve, sep } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { ownVersion } from './version.ts'
+import { APP_SECRET_REF } from './credentials.ts'
 import { instanceIdentity, refuseInstanceName } from './instance.ts'
 
 /** Profile created when the operator names none. */
@@ -42,6 +43,9 @@ export const SERVICE_LABEL = 'dev.omdsh.dsh-lark'
 
 /** Composition row id this plugin owns, and its section name in the settings document. */
 export const ROW_ID = 'lark-channel'
+
+/** Basename of the harness credentials document, inside the harness home. */
+export const CREDENTIALS_FILENAME = '.credentials.yaml'
 
 /** How long `start` watches for a scan before leaving the operator to it. */
 export const ONBOARDING_WATCH_MS = 10 * 60 * 1000
@@ -314,14 +318,15 @@ export function unitPath(platform: NodeJS.Platform = process.platform): string {
 }
 
 /**
- * Whether the settings document already carries this plugin's section, which is
- * where a completed scan persists its credentials. A top-level key is enough to
- * decide, so no YAML parser — and no dependency on one — is needed.
- * @param document - contents of the settings document.
- * @returns true when the section is present.
+ * Whether the credentials document already holds one reference, which is where
+ * a completed scan puts the app secret. A line at the document's own indent is
+ * enough to decide, so no YAML parser — and no dependency on one — is needed.
+ * @param document - contents of the credentials document.
+ * @param ref - the reference name to look for.
+ * @returns true when the reference is present.
  */
-export function hasCredentialSection(document: string, namespace: string = ROW_ID): boolean {
-  return new RegExp(`^${namespace}\\s*:`, 'm').test(document)
+export function hasCredentialSection(document: string, ref: string = APP_SECRET_REF): boolean {
+  return new RegExp(`^\\s*${ref}\\s*:`, 'm').test(document)
 }
 
 /**
@@ -339,17 +344,20 @@ export function envCredentials(environment: NodeJS.ProcessEnv = process.env): En
 
 /**
  * Whether a scan is still needed: credentials exist in the environment (the
- * unit forwards them) or a previous scan persisted them through the host
- * settings service.
+ * unit forwards them) or a previous scan stored the app secret through the host
+ * credentials seam.
+ * @param instance - this row's instance name, absent for the original row.
  * @returns true when the bot already has credentials to connect with.
  */
 export function isOnboarded(instance?: string): boolean {
   // The environment pair belongs to the unnamed row; a named one has its own
-  // credential and its own settings section, so it is never onboarded by it.
+  // credential, so it is never onboarded by it.
   if (instance === undefined && envCredentials() !== undefined) return true
   try {
-    const document = readFileSync(join(dshHome(), 'settings.yaml'), 'utf8')
-    return hasCredentialSection(document, instanceIdentity(instance).settingsNamespace)
+    return hasCredentialSection(
+      readFileSync(join(dshHome(), CREDENTIALS_FILENAME), 'utf8'),
+      instanceIdentity(instance).secretRef,
+    )
   } catch {
     return false
   }

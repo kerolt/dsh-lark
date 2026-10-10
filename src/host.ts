@@ -428,21 +428,35 @@ export interface HostLoader {
   await(): Promise<unknown>
 }
 
-/** One registered namespace's owner scope (subset of the host `SettingsScope`). */
-export interface HostSettingsScope {
-  /** The resolved value: schema defaults, then composition base, then the user document. */
-  get(): unknown
-  /** Deep-merge a patch into the user section and persist it through the provider. */
-  update(patch: object): Promise<unknown>
+/** One profile entry's configuration form (subset of the host `SettingsDescriptor`). */
+export interface HostSettingsEntry {
+  /** The profile entry id this form addresses, which is also what a write names. */
+  readonly ns: string
+  /** The entry's config schema as this deployment serializes it, projected to its volatile fields. */
+  readonly schema: unknown
+  /** The entry's live resolved value, by reference, projected to the volatile fields. */
+  readonly value: unknown
 }
 
-/** The `settings` user-settings service (subset of `SettingsProvider`). */
+/**
+ * The `settings` configuration-form service (subset of `SettingsForms`).
+ *
+ * A dashboard over the profile's own plugin entries: it reads each active
+ * entry's schema and live values, and writes field edits back into the profile
+ * patch. There is no namespace registry — an entry is addressed by the id the
+ * profile gave it — so a plugin writes to the entry it is mounted from.
+ */
 export interface HostSettings {
+  /** Every active entry's form. Synchronous: it reads the running tree. */
+  describe(): readonly HostSettingsEntry[]
   /**
-   * Register a namespace schema; the registration is an effect on the calling
-   * fiber. Duplicate namespaces and stored sections the schema rejects fail loud.
+   * Merge editable fields into one entry's configuration and persist them.
+   * Only schema-declared volatile fields are accepted; an ordinary field is
+   * refused rather than restarted around.
+   * @param ns - profile entry id.
+   * @param patch - fields to merge.
    */
-  register(ns: string, schema: unknown, options?: { base?: unknown }): HostSettingsScope
+  update(ns: string, patch: object): Promise<unknown>
 }
 
 /**

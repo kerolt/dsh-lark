@@ -4,6 +4,7 @@
  */
 
 import z from '@deepseek-ai/schemastery'
+import type { Volatile } from '@deepseek-ai/cordis'
 import { DEFAULT_BOT_HOPS } from './botchat.ts'
 import type { SessionScope } from './session.ts'
 
@@ -21,35 +22,79 @@ import type { SessionScope } from './session.ts'
 const DEFAULT_DENY_TOOLS = [] as const
 
 /**
- * Runtime plugin configuration supplied by the profile composition. Package
- * installation policy is owned by the provisioning CLI, not this schema.
+ * The fields this plugin lets the settings service write back, and the only
+ * ones the Loader hands over as live references.
+ *
+ * Named here as well as in the schema because {@link PlainConfig} has to know
+ * which fields a document writes as values: the schema declares the behaviour,
+ * and this list is what lets a reader's type treat those fields as data.
  */
-export interface Config {
+type VolatileFields =
+  | 'appId'
+  | 'appSecret'
+  | 'appSecretRef'
+  | 'registeredBy'
+  | 'chatWorkspaces'
+  | 'chatModels'
+  | 'chatEpochs'
+  | 'chatSessions'
+
+/**
+ * Plugin configuration as it reaches this plugin: what {@link ConfigSchema}
+ * validates, and what {@link apply} receives.
+ *
+ * This is the shape this plugin's documentation describes. Absent is
+ * `undefined` rather than a missing key, because the Loader keeps the key, and
+ * a volatile field arrives as the live reference {@link ConfigSchema} declares
+ * — a document, and a direct caller, supply plain values instead.
+ * {@link resolveConfig} reads every one of them through {@link dereference}.
+ */
+export interface RawConfig {
   /**
    * Names this row when a deployment composes more than one, so two bots keep
-   * separate settings sections, separate app-secret credentials, and separate
-   * session ids — two bots in one group would otherwise share an agent.
+   * separate app-secret credentials and separate session ids — two bots in one
+   * group would otherwise share an agent. Each row's workspace, model, epoch,
+   * and session maps live in its own profile entry, which needs no name here.
    *
    * Absent is the original single-row deployment, whose identifiers are
    * unchanged: name the SECOND row, never the first, and nothing already
    * stored moves.
    */
   instance?: string
-  /** Lark/Feishu app id (`cli_…`); absent (with no stored credential) starts first-boot QR registration. */
-  appId?: string
+  /**
+   * Lark/Feishu app id (`cli_…`); absent (with no stored credential) starts
+   * first-boot QR registration.
+   *
+   * Managed state as far as the settings service is concerned: a completed scan
+   * writes what it registered here, so the next boot reaches the same app
+   * without another scan. Hence volatile — a config editor may write this field
+   * into the profile and hand the new value to the running plugin, which is
+   * also why it is the one field of the pair that may live in a document people
+   * read: the secret is a credential.
+   */
+  appId?: Volatile<string | undefined> | undefined
   /**
    * Lark/Feishu app secret paired with {@link appId}. A deployment that
-   * injects one here keeps owning it; onboarding stores what it scans behind
-   * {@link Config.appSecretRef} instead, so nothing writes a secret into the
-   * user settings document that a credentials provider could hold.
+   * injects one here keeps owning it; a completed scan stores what it scanned
+   * behind {@link RawConfig.appSecretRef} and blanks this field, and a
+   * deployment without a credentials provider keeps the secret here instead —
+   * both are writes into the profile, which is what makes the field volatile.
    */
-  appSecret?: string
+  appSecret?: Volatile<string | undefined> | undefined
   /**
    * Name of the credential holding the app secret, resolved through
    * `ctx.credentials` on every boot: an environment variable, a dotenv entry,
-   * or the provider's own store, whichever is configured.
+   * or the provider's own store, whichever is configured. Written by
+   * onboarding, which is what makes it volatile.
    */
-  appSecretRef?: string
+  appSecretRef?: Volatile<string | undefined> | undefined
+  /**
+   * Managed state, not configuration: the open id of the user whose scan
+   * created or re-authorized this app, recorded by onboarding for the
+   * operator's reference. It narrows nothing on its own; put it into
+   * `senderAllowlist` or `approvers` to restrict who may drive the bot.
+   */
+  registeredBy?: Volatile<string | undefined> | undefined
   /** Open-platform domain: `https://open.feishu.cn` (default) or `https://open.larksuite.com`. */
   domain?: string
   /** Absolute workspace directory for chat-driven agents; defaults to the host process cwd. */
@@ -68,25 +113,25 @@ export interface Config {
    * persistence layer deep-merges patches, so entries are overwritten rather
    * than deleted.
    */
-  chatWorkspaces?: Record<string, string>
+  chatWorkspaces?: Volatile<Record<string, string> | undefined> | undefined
   /**
    * Managed state, not configuration: the `provider/model` route each
    * conversation asked for via `/model use`, keyed by conversation key, with
    * the same empty-string default marker as {@link chatWorkspaces}.
    */
-  chatModels?: Record<string, string>
+  chatModels?: Volatile<Record<string, string> | undefined> | undefined
   /**
    * Managed state, not configuration: how many times each conversation has
    * started over with `/new`, keyed by the session id it derives at epoch
    * zero. Absent is the first session, whose id is unchanged.
    */
-  chatEpochs?: Record<string, string>
+  chatEpochs?: Volatile<Record<string, string> | undefined> | undefined
   /**
    * Managed state, not configuration: the session each conversation was
    * explicitly bound to via /session <id>, keyed by conversation key. An
    * empty-string value marks automatic derivation (the override was reset).
    */
-  chatSessions?: Record<string, string>
+  chatSessions?: Volatile<Record<string, string> | undefined> | undefined
   /** Provider route override for chat agents; defaults to the host `agentDefaultModel` selection. */
   provider?: string
   /** Model id override for chat agents; defaults to the host `agentDefaultModel` selection. */
@@ -255,54 +300,35 @@ export interface Config {
   approvers?: string[]
 }
 
-/** Configuration after defaults have been resolved; credentials may still be pending onboarding. */
-export interface ResolvedConfig {
-  instance?: string | undefined
-  appId?: string | undefined
-  appSecret?: string | undefined
-  appSecretRef?: string | undefined
-  domain?: string | undefined
-  cwd?: string | undefined
-  workspaceRoots: string[]
-  chatWorkspaces: Record<string, string>
-  chatModels: Record<string, string>
-  chatEpochs: Record<string, string>
-  chatSessions: Record<string, string>
-  provider?: string | undefined
-  model?: string | undefined
-  preset?: string | undefined
-  sessionScope: SessionScope
-  output: 'cot' | 'stream'
-  showProcess: boolean
-  attachImages: boolean
-  receiveFiles: boolean
-  maxReceiveFileBytes: number
-  sendFiles: boolean
-  maxSendFileBytes: number
-  hideProcessWhenDone: boolean
-  syncSlashCommands: boolean
-  denyTools: string[]
-  botPeers: string[]
-  botHops: number
-  requireMention: boolean
-  senderAllowlist: string[]
-  groupAllowlist: string[]
-  approvers: string[]
-}
-
-/** Loader-visible configuration schema and defaults. */
-export const Config: z<Config> = z.object({
+/**
+ * Loader-visible configuration schema and defaults.
+ *
+ * The fields the settings service writes back — this row's app id, the
+ * credential reference holding its secret, and the per-conversation state —
+ * are `volatile`: the Loader hands a changed value to the running plugin
+ * without remounting it, which is what lets a `/cd` or a completed scan reach
+ * disk and still take effect in the same process. Everything hand-configured
+ * stays ordinary, so a configuration form keeps editing it by restart.
+ *
+ * The input side is annotated `any` because a schema's accepted input is not
+ * the shape it produces: every optional field also admits `null`, which this
+ * plugin's own type does not, and naming that union here would document a
+ * contract nobody wants. The output side is {@link RawConfig}, which is
+ * checked.
+ */
+export const Config: z<any, RawConfig> = z.object({
   instance: z.string(),
-  appId: z.string(),
-  appSecret: z.string().role('secret'),
-  appSecretRef: z.string(),
+  appId: z.string().volatile(),
+  appSecret: z.string().role('secret').volatile(),
+  appSecretRef: z.string().volatile(),
+  registeredBy: z.string().volatile(),
   domain: z.string(),
   cwd: z.string(),
   workspaceRoots: z.array(String),
-  chatWorkspaces: z.dict(String).default({}),
-  chatModels: z.dict(String).default({}),
-  chatEpochs: z.dict(String).default({}),
-  chatSessions: z.dict(String).default({}),
+  chatWorkspaces: z.dict(String).default({}).volatile(),
+  chatModels: z.dict(String).default({}).volatile(),
+  chatEpochs: z.dict(String).default({}).volatile(),
+  chatSessions: z.dict(String).default({}).volatile(),
   provider: z.string(),
   model: z.string(),
   preset: z.string(),
@@ -326,18 +352,98 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Resolve the same defaults for direct callers that bypass Cordis Loader.
- * @param config - Serialized configuration with the required credentials.
- * @returns Configuration with all schema defaults applied.
+ * Plugin configuration as it reaches this plugin: {@link Config}'s validation
+ * output, which is {@link RawConfig} with every optional field present and
+ * every volatile field a live reference.
+ *
+ * This is what {@link apply} receives.
  */
-export function resolveConfig(config: Config): ResolvedConfig {
+export type ValidatedConfig = Required<RawConfig>
+
+/**
+ * A configuration a caller assembled itself: a document's own values, or one
+ * this plugin's tests write out by hand. A volatile field is given as the value
+ * itself, which is how a person writes it in a profile patch.
+ */
+export type PlainConfig = {
+  [K in keyof RawConfig]: K extends VolatileFields
+    ? NonNullable<RawConfig[K]> extends Volatile<infer V> ? V | undefined : never
+    : RawConfig[K]
+}
+
+/** Configuration after defaults have been resolved; credentials may still be pending onboarding. */
+export interface ResolvedConfig {
+  instance?: string | undefined
+  appId?: string | undefined
+  appSecret?: string | undefined
+  appSecretRef?: string | undefined
+  registeredBy?: string | undefined
+  domain?: string | undefined
+  cwd?: string | undefined
+  workspaceRoots: string[]
+  chatWorkspaces: Readonly<Record<string, string>>
+  chatModels: Readonly<Record<string, string>>
+  chatEpochs: Readonly<Record<string, string>>
+  chatSessions: Readonly<Record<string, string>>
+  provider?: string | undefined
+  model?: string | undefined
+  preset?: string | undefined
+  sessionScope: SessionScope
+  output: 'cot' | 'stream'
+  showProcess: boolean
+  attachImages: boolean
+  receiveFiles: boolean
+  maxReceiveFileBytes: number
+  sendFiles: boolean
+  maxSendFileBytes: number
+  hideProcessWhenDone: boolean
+  syncSlashCommands: boolean
+  denyTools: string[]
+  botPeers: string[]
+  botHops: number
+  requireMention: boolean
+  senderAllowlist: string[]
+  groupAllowlist: string[]
+  approvers: string[]
+}
+
+/**
+ * Read one volatile field as the value it currently holds.
+ *
+ * A volatile field is a live reference, so a reader that captured the snapshot
+ * would keep serving the value the process booted with. Everything downstream
+ * of {@link resolveConfig} works on snapshots: the in-memory maps the chat
+ * commands maintain are the authority between boots, and this plugin writes
+ * through to the profile rather than reading it back mid-flight.
+ * @param field - the field's current value, reference or plain.
+ * @returns the value itself, or undefined when the field is absent.
+ */
+function dereference<T>(field: Volatile<T> | T | undefined): T | undefined {
+  if (typeof field === 'object' && field !== null && 'get' in field && typeof field.get === 'function') {
+    return (field as Volatile<T>).get() as T | undefined
+  }
+  return field as T | undefined
+}
+
+/**
+ * Resolve the same defaults for direct callers that bypass Cordis Loader.
+ * @param config - Configuration from the Loader, or a hand-written one whose
+ *   volatile fields may be given as plain values.
+ * @returns Configuration with all schema defaults applied and every volatile
+ *   field replaced by its current value.
+ */
+export function resolveConfig(config: RawConfig | PlainConfig): ResolvedConfig {
   return {
     ...config,
+    appId: dereference(config.appId),
+    appSecret: dereference(config.appSecret),
+    appSecretRef: dereference(config.appSecretRef),
+    registeredBy: dereference(config.registeredBy),
     workspaceRoots: config.workspaceRoots ?? [],
-    chatWorkspaces: config.chatWorkspaces ?? {},
-    chatModels: config.chatModels ?? {},
-    chatEpochs: config.chatEpochs ?? {},
-    chatSessions: config.chatSessions ?? {},
+    chatWorkspaces: dereference(config.chatWorkspaces) ?? {},
+    chatModels: dereference(config.chatModels) ?? {},
+    chatEpochs: dereference(config.chatEpochs) ?? {},
+    chatSessions: dereference(config.chatSessions) ?? {},
     sessionScope: config.sessionScope ?? 'chat',
     output: config.output ?? 'cot',
     showProcess: config.showProcess ?? true,

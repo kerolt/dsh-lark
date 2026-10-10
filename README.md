@@ -153,7 +153,10 @@ dsh web
 - `instance` 用于命名额外的机器人实例；第一个机器人保持未命名，以兼容已有设置和会话。
 - `botPeers` 可以限制允许对话的机器人，`botHops` 控制连续机器人轮次，默认是 6。
 - 会改变状态的卡片绑定原聊天，转发到其他聊天后不能操作原会话。
-- 部署提供 credentials 服务时，扫码得到的 App Secret 会存入其中；旧版本写在 settings 中的 secret 会在下次启动时自动迁移。
+- 部署提供 credentials 服务时，扫码得到的 App Secret 会存入其中，profile 里只留下 `appSecretRef` 这个引用名与扫码人的 open id（`registeredBy`，仅记录不收窄权限）；不提供时 secret 写进 profile 文档本身（能读到这个文件的人都能看到，控制台会说明）。旧版本直接写在配置里的 secret 会在下次启动时自动迁移并清空原处。
+- 会改变状态的东西（扫码得到的 `appId`、每个会话的 `/cd`、`/model`、`/new`、`/session`）都通过 `settings` 服务写回 profile 自己的 `cordis.patch.yml`，重启后仍在。这些字段在 schema 里声明为 `volatile`，所以写回的同时当次进程立刻生效，不需要重启。
+- 从还在写 `settings.yaml` 的旧版 DSH 升级：宿主会在首次启动时把该文件搬入 profile，渠道会等这次搬运完成再决定是否需要扫码，已有的应用凭证照旧生效。
+- 配置在启动时读取；改动手写配置需要重启服务。
 - 图片附件默认关闭；只有确认当前模型支持视觉时，才应开启 `attachImages`。
 - `receiveFiles` 默认开：入站文件落在当前会话工作区的 `.dsh-lark/inbox/<时间戳>-<消息哈希>/` 下，只增不删，清理是你的决定；首次落地时会提醒把 `.dsh-lark/` 加进 `.gitignore`，但不会替你去改这个文件。
 - `sendFiles` 默认开：私聊直接发，群聊每次弹审批卡片，卡片上是文件在工作区内的位置、工作区名和大小（不是宿主的绝对路径——群里每个人都会看到它）；**没有关闭群聊审批的开关**，因为那会是提示注入外泄链的官方后门。
@@ -162,7 +165,6 @@ dsh web
 - 审批结束卡会记录决定人：回调未带姓名时，渠道会尽力从当前聊天成员名单解析；没有成员查询权限、查询失败或成员已不在群内时仍安全显示 open_id，绝不会影响审批或文件发送。
 - 单文件上限默认 20 MiB，收发分别由 `maxReceiveFileBytes` / `maxSendFileBytes` 配置；文档类产物（pdf / xlsx / docx）在聊天里只能下载、没有在线预览，这是上游 SDK 把普通文件固定按 `stream` 类型上传带来的已知取舍。
 - 语音消息只落盘，不会被转写成文字。
-- 配置在启动时读取，修改后需要重启服务。
 
 </details>
 
@@ -181,6 +183,14 @@ pnpm install
 pnpm test
 pnpm build
 ```
+
+单元测试里的 `settings` 服务是这个仓库自己写的替身，所以它对不上真实接口时，测试照样全绿。要对着装好的 DSH 验一次持久化，用：
+
+```sh
+pnpm run e2e:settings
+```
+
+它会把 `$DSH_HOME/profiles/lark` 复制到临时目录、换上本仓库的构建产物、用一个假 transport 启动，检查扫码结果是否落进 `cordis.patch.yml` 与 `.credentials.yaml`，再启一次确认不再要求扫码，最后放一个仍带 `settings.yaml` 的升级 home 进来，确认搬运完成后照常连接。真实 profile 和真实机器人不受影响。
 
 ## License
 

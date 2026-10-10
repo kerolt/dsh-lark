@@ -8,11 +8,11 @@
  * operation picks them up. Configuration surfaces then describe a secret
  * without ever holding one.
  *
- * This plugin used to persist the scanned secret straight into the user
- * settings document, which is the wrong home for it twice over: that document
- * is meant to be read and hand-edited, and it is the same file a deployment
- * copies around to move its preferences. The secret now goes to the
- * credentials seam and the settings keep only the reference.
+ * This plugin used to persist the scanned secret straight into the profile's
+ * configuration document, which is the wrong home for it twice over: that
+ * document is meant to be read and hand-edited, and it is the same file a
+ * deployment copies around to move its preferences. The secret now goes to the
+ * credentials seam and the profile keeps only the reference.
  *
  * A deployment without a credentials provider keeps working exactly as it
  * did, secret and all — degrading to a worse hiding place beats refusing to

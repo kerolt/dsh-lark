@@ -12,8 +12,8 @@ export const name = 'lark-channel'
 export const inject: string[] = ['agents']
 
 export { Config } from './config.ts'
-export type { ResolvedConfig } from './config.ts'
-export { apply } from './runtime.ts'
+export type { PlainConfig, RawConfig, ResolvedConfig } from './config.ts'
+export { apply, internals } from './runtime.ts'
 export type { ChannelConfig } from './runtime.ts'
 export type { ChannelPort } from './bridge.ts'
 export type { LarkCredentials, RegisterAppPort } from './onboarding.ts'

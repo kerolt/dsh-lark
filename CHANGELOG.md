@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A scanned app survives a restart. The channel persisted its durable state through a `settings` namespace registry this DSH no longer composes: the service offers `describe` and `update` over profile entries instead, so the first call threw, the plugin's own catch swallowed it into a logger the shipped profiles do not print, and every symptom that followed was silent — the secret never reached `~/.dsh/.credentials.yaml`, the `appId` never reached the profile patch, and every restart asked for another QR scan. The plugin now finds its own row by the schema signature the service hands back and writes through `settings.update`, with the app secret still going to the credentials seam and only its reference staying in the profile.
+- Durable state takes effect in the same process. Every field a write-back may name — `appId`, `appSecret`, `appSecretRef`, `registeredBy`, and the four conversation maps — is declared `volatile` in the schema, so the Loader commits a written value into the running plugin instead of leaving it for the next boot; a `/cd`, `/model`, `/new`, or `/session` is live the moment it is persisted. A patch naming an ordinary field would be refused whole, `appId` included, which is why the scanner's open id rides the same schema track instead of a stray key.
+- A deployment with no credentials provider persists a scanned secret into the profile document again, with the operator told where it landed — a worse hiding place beats another scan.
+- A deployment upgraded from a settings.yaml-era DSH keeps its onboarding: the host imports that document into the profile once the loader settles, and the channel waits out the import — volatile fields are committed into the running entry as it lands — rather than showing a QR code the arriving credentials make unnecessary. A secret that moved this way leaves the profile blanked behind its `appSecretRef`.
+- `dsh-lark-channel status` and `start` read onboarding from the credentials document the secret actually lands in, rather than from a `settings.yaml` this DSH no longer writes — the CLI used to report a scanned bot as still waiting for its scan.
+
+### Added
+- `pnpm run e2e:settings` boots a profile copy against an installed DSH with a stubbed transport and holds the result to what a scan must leave behind: `appId`, `registeredBy`, and `appSecretRef` in the profile patch, the secret in `.credentials.yaml`, a second boot without a scan, and an upgraded home whose `settings.yaml` import replaces both. The unit suite's `settings` service is a stand-in this repository wrote itself, so only this run makes an API the deployment no longer has fail loudly.
+
 ## 0.0.7 — 2026-08-19
 
 Thanks to @HarveyZed for `/session` (#9, the groundwork for `/sessions`),

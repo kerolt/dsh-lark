@@ -2062,8 +2062,7 @@ describe('dsh-lark-channel', () => {
       )
       await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
 
-      // Its own settings section and its own credential.
-      expect(store.registered[0]!.ns).toBe('lark-channel-support')
+      // Its own credential: a named row keys its app secret apart too.
       expect(vault.stored).toEqual([{ ref: 'LARK_APP_SECRET_SUPPORT', value: 'second-secret' }])
 
       // And its own session ids: the same chat under two rows is two agents.
@@ -2087,7 +2086,7 @@ describe('dsh-lark-channel', () => {
       await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
 
       expect(vault.stored).toEqual([{ ref: 'LARK_APP_SECRET', value: 'new-secret' }])
-      // The settings keep the reference and a blanked secret: a deep-merged
+      // The profile keeps the reference and a blanked secret: a deep-merged
       // patch cannot delete a key, and an empty secret is an absent one.
       expect(store.updates).toEqual([
         { appId: 'cli_new', appSecret: '', appSecretRef: 'LARK_APP_SECRET' },
@@ -2096,11 +2095,13 @@ describe('dsh-lark-channel', () => {
       await harness.dispose()
     })
 
-    it('moves a secret already in the settings document behind a credential', async () => {
-      const store = createFakeSettings({ appId: 'cli_stored', appSecret: 'old-secret' })
+    it('moves a secret already in the profile document behind a credential', async () => {
+      // The profile's own layer holds the secret, and the entry resolves to it
+      // — the state a deployment onboarded before the credentials seam is in.
+      const store = createFakeSettings()
       const vault = createFakeCredentials()
       const harness = await mountChannel(
-        { appId: undefined, appSecret: undefined },
+        { appId: 'cli_stored', appSecret: 'old-secret' },
         { settings: store.settings, credentials: vault.credentials },
       )
       // Repaired by restarting rather than by scanning again — and the channel
@@ -2108,6 +2109,7 @@ describe('dsh-lark-channel', () => {
       await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
       expect(vault.stored).toEqual([{ ref: 'LARK_APP_SECRET', value: 'old-secret' }])
       expect(store.updates).toEqual([{ appSecret: '', appSecretRef: 'LARK_APP_SECRET' }])
+      expect(store.entryIds).toEqual(['lark-channel'])
       expect(harness.portConfigs[0]!.appSecret).toBe('old-secret')
       await harness.dispose()
     })
@@ -2127,10 +2129,12 @@ describe('dsh-lark-channel', () => {
 
     it('reports who registered the app without authorizing on it', async () => {
       const store = createFakeSettings()
+      const vault = createFakeCredentials()
       const harness = await mountChannel(
         { appId: undefined, appSecret: undefined },
         {
           settings: store.settings,
+          credentials: vault.credentials,
           registerApp: async () => ({
             client_id: 'cli_new',
             client_secret: 'new-secret',
@@ -2140,7 +2144,7 @@ describe('dsh-lark-channel', () => {
       )
       await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
       expect(store.updates).toEqual([
-        { appId: 'cli_new', appSecret: 'new-secret', registeredBy: 'ou_scanner' },
+        { appId: 'cli_new', registeredBy: 'ou_scanner', appSecret: '', appSecretRef: 'LARK_APP_SECRET' },
       ])
       // Recorded for reference; it narrows nothing on its own.
       expect(harness.portAuthorizations[0]!.directSenders).toEqual([])
@@ -2290,7 +2294,7 @@ describe('dsh-lark-channel', () => {
       await harness.dispose()
     })
 
-    it('persists scanned credentials through the settings service', async () => {
+    it('stores a scanned secret in the profile where the deployment has no credential store', async () => {
       const store = createFakeSettings()
       const harness = await mountChannel(
         { appId: undefined, appSecret: undefined },
@@ -2300,22 +2304,79 @@ describe('dsh-lark-channel', () => {
         },
       )
       await vi.waitFor(() => { expect(harness.fake.state.subscriptions).toBe(INBOUND_SUBSCRIPTIONS) })
-      expect(store.registered[0]!.ns).toBe('lark-channel')
+      // With nowhere else to put it, the secret goes to the profile document
+      // and the operator is told so — a worse hiding place beats another scan.
       expect(store.updates).toEqual([{ appId: 'cli_new', appSecret: 'new-secret' }])
+      expect(harness.notices.some(line => line.includes('no credentials provider is composed'))).toBe(true)
       await harness.dispose()
     })
 
     it('uses credentials stored in settings without re-registering', async () => {
-      const store = createFakeSettings({ appId: 'cli_stored', appSecret: 'stored-secret' })
+      const store = createFakeSettings()
       const registerApp = vi.fn<RegisterAppPort>()
       const harness = await mountChannel(
-        { appId: undefined, appSecret: undefined },
+        { appId: 'cli_stored', appSecret: 'stored-secret' },
         { settings: store.settings, registerApp },
       )
       await vi.waitFor(() => { expect(harness.fake.state.subscriptions).toBe(INBOUND_SUBSCRIPTIONS) })
       expect(registerApp).not.toHaveBeenCalled()
       expect(harness.portConfigs[0]!.appId).toBe('cli_stored')
       await harness.dispose()
+    })
+
+    it('waits out an in-flight legacy settings import instead of asking for a scan', async () => {
+      // A home from the dsh that kept settings.yaml: upgraded, it still carries
+      // the file at boot, and the host moves its sections into the profile once
+      // the loader settles. Onboarding decided before that import lands would
+      // show a QR code the about-to-arrive credentials make unnecessary.
+      const home = mkdtempSync(join(tmpdir(), 'home-'))
+      await writeFile(join(home, 'settings.yaml'), 'lark-channel:\n  appId: cli_stored\n')
+      process.env.DSH_HOME = home
+      // The import lands mid-boot, exactly the way the host's fire-and-forget
+      // task commits it into the running entry.
+      let imported: Record<string, unknown> = {}
+      setTimeout(() => { imported = { appId: 'cli_imported', appSecret: 'imported-secret' } }, 150)
+      const store = createFakeSettings({ value: () => imported })
+      const registerApp = vi.fn<RegisterAppPort>()
+      try {
+        const harness = await mountChannel(
+          { appId: undefined, appSecret: undefined },
+          { settings: store.settings, registerApp },
+        )
+        await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
+        expect(registerApp).not.toHaveBeenCalled()
+        expect(harness.portConfigs[0]!.appId).toBe('cli_imported')
+        expect(harness.portConfigs[0]!.appSecret).toBe('imported-secret')
+        await harness.dispose()
+      } finally {
+        delete process.env.DSH_HOME
+        await rm(home, { recursive: true, force: true })
+      }
+    })
+
+    it('onboards when the legacy import carries nothing for this row', async () => {
+      // The file exists, the row's section does not survive into it — waiting
+      // must not hold onboarding hostage past the window.
+      const home = mkdtempSync(join(tmpdir(), 'home-'))
+      await writeFile(join(home, 'settings.yaml'), 'llm-deepseek:\n  thinking: enabled\n')
+      process.env.DSH_HOME = home
+      const store = createFakeSettings({ value: {} })
+      const registerApp = vi.fn<RegisterAppPort>(
+        async () => ({ client_id: 'cli_new', client_secret: 'new-secret' }),
+      )
+      try {
+        const harness = await mountChannel(
+          { appId: undefined, appSecret: undefined },
+          { settings: store.settings, registerApp },
+        )
+        await vi.waitFor(() => { expect(registerApp).toHaveBeenCalled() })
+        await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(1) })
+        expect(store.updates).toEqual([{ appId: 'cli_new', appSecret: 'new-secret' }])
+        await harness.dispose()
+      } finally {
+        delete process.env.DSH_HOME
+        await rm(home, { recursive: true, force: true })
+      }
     })
 
     it('shows the code as a scannable drawing beside its URL', async () => {

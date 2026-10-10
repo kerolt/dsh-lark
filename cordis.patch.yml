@@ -9,16 +9,29 @@
       name: 'dsh-lark-channel'
       config:
         # Credentials layer as: these entry values (env via `!!js`, never
-        # `!js`) → the user settings document. With neither set, first boot
-        # logs a QR URL; scanning it creates the app and the credentials
-        # persist through the host `settings` service.
+        # `!js`) → the credential a scan stored → the environment the process
+        # inherited. With none set, first boot logs a QR URL; scanning creates
+        # the app, the secret goes to the host credentials store, and this row
+        # gains `appId` plus an `appSecretRef` naming it. With no credentials
+        # store composed, the secret stays in this row instead — readable by
+        # anyone who can read this file.
         appId: !!js process.env.LARK_APP_ID
         appSecret: !!js process.env.LARK_APP_SECRET
         # domain: https://open.larksuite.com   # default is Feishu
         # cwd: an absolute workspace directory  # default is the host process cwd
         # workspaceRoots: []   # directory prefixes /cd may enter; empty = any
-        # chatWorkspaces: {}   # managed by /cd via the settings service; not hand-edited
-        # chatModels: {}       # managed by /model via the settings service; not hand-edited
+        # Everything below is written back by the settings service, not
+        # hand-edited: `appId`, `appSecretRef`, and `registeredBy` by a
+        # completed scan (`appSecret` is blanked once the secret sits behind
+        # its reference), the maps by their chat commands. These fields and
+        # `appSecret` above are the schema's volatile ones, so a write reaches
+        # the running process as well as this document.
+        # appSecretRef: LARK_APP_SECRET
+        # registeredBy: ou_...   # open id of the scanning user, for reference
+        # chatWorkspaces: {}   # managed by /cd
+        # chatModels: {}       # managed by /model
+        # chatEpochs: {}       # managed by /new
+        # chatSessions: {}     # managed by /session
         # provider: deepseek                    # default is the host agentDefaultModel
         # model: deepseek-chat
         # Output. `cot` shows the process as a native thinking-process message

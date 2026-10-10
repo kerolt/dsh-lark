@@ -7,11 +7,10 @@ import { workspaceSessionId } from '../src/workspace.ts'
 describe('instance identity', () => {
   it('leaves an unnamed row on the identifiers it already has', () => {
     const identity = instanceIdentity()
-    // Byte for byte: an existing deployment's settings section, credential,
-    // and every stored session id have to keep resolving after this feature
-    // exists. A change here orphans live conversations.
+    // Byte for byte: an existing deployment's credential and every stored
+    // session id have to keep resolving after this feature exists. A change
+    // here orphans live conversations.
     expect(identity).toEqual({
-      settingsNamespace: 'lark-channel',
       secretRef: APP_SECRET_REF,
       sessionPrefix: 'lark-',
     })
@@ -21,9 +20,8 @@ describe('instance identity', () => {
     expect(workspaceSessionId('oc_1', undefined, identity.sessionPrefix)).toBe('lark-oc_1')
   })
 
-  it('keys a named row apart in all three places at once', () => {
+  it('keys a named row apart in both places at once', () => {
     const second = instanceIdentity('support')
-    expect(second.settingsNamespace).toBe('lark-channel-support')
     expect(second.secretRef).toBe('LARK_APP_SECRET_SUPPORT')
     expect(second.sessionPrefix).toBe('lark-support-')
     // The one that bites quietest: two bots in ONE group must not derive the
@@ -34,7 +32,6 @@ describe('instance identity', () => {
 
   it('folds a dashed name into the shape a credential reference allows', () => {
     expect(instanceIdentity('cn-ops').secretRef).toBe('LARK_APP_SECRET_CN_OPS')
-    expect(instanceIdentity('cn-ops').settingsNamespace).toBe('lark-channel-cn-ops')
   })
 
   it('refuses a name that would corrupt the identifiers it becomes part of', () => {
@@ -50,7 +47,7 @@ describe('instance identity', () => {
   it('gives every named row a distinct set, so two of them cannot collide', () => {
     const names = ['support', 'sales', 'cn-ops']
     const identities = names.map(name => instanceIdentity(name))
-    for (const field of ['settingsNamespace', 'secretRef', 'sessionPrefix'] as const) {
+    for (const field of ['secretRef', 'sessionPrefix'] as const) {
       const values = identities.map(identity => identity[field])
       expect(new Set(values).size).toBe(names.length)
       expect(values).not.toContain(instanceIdentity()[field])

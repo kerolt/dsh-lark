@@ -706,8 +706,24 @@ export interface LoggedLine {
   text: string
 }
 
-/** Plugin config overrides; an explicit `undefined` removes a harness default. */
-type ConfigOverrides = { [K in keyof plugin.Config]?: plugin.Config[K] | undefined }
+/** The configuration a mount runs on unless a test overrides a field. */
+function harnessConfig(): Record<string, unknown> {
+  return {
+    appId: 'cli_test',
+    appSecret: 'test-secret',
+    provider: 'test-provider',
+    model: 'test-model',
+  }
+}
+
+/**
+ * Plugin config overrides; an explicit `undefined` removes a harness default.
+ *
+ * Typed as raw data rather than as the schema's own shape: a test writes what a
+ * profile patch holds, volatile fields as plain values, and the production
+ * schema is what turns that into the configuration the plugin receives.
+ */
+type ConfigOverrides = Record<string, unknown> | plugin.PlainConfig
 
 /** Mount the production plugin over the fake port and fake `agents` registry. */
 export async function mountChannel(
@@ -806,13 +822,11 @@ export async function mountChannel(
   internals.notify = (line) => { notices.push(line) }
   // A re-issued QR code waits out the production floor, which a test must not.
   internals.reissueFloorMs = 0
-  const merged = {
-    appId: 'cli_test',
-    appSecret: 'test-secret',
-    provider: 'test-provider',
-    model: 'test-model',
-    ...config,
-  } as plugin.Config
+  // Nor may a test wait out ten seconds of legacy-import patience per mount.
+  internals.legacyImportWindowMs = 500
+  // The Loader validates this and hands the volatile fields over as live
+  // references; a direct mount receives the plain values the harness wrote.
+  const merged = { ...harnessConfig(), ...config } as unknown as plugin.RawConfig
   const fiber = await ctx.plugin(plugin, merged)
   // Activation bootstraps asynchronously; hold until the bridge subscribed when
   // the mount alone is expected to reach a connected channel.
@@ -838,6 +852,7 @@ export async function mountChannel(
         internals.registerApp = originalRegisterApp
         internals.notify = originalNotify
         delete internals.reissueFloorMs
+        delete internals.legacyImportWindowMs
       }
     },
   }
@@ -968,23 +983,112 @@ export function createFakeTools(
   return { service, views }
 }
 
-/** An in-memory `settings` service: one namespace layering base under `stored`. */
-export function createFakeSettings(stored: Record<string, unknown> = {}) {
+/**
+ * One schema node reduced to what the settings service hands a reader: its
+ * type, its metadata, and its elements. The service also drops the `volatile`
+ * mark, since the projection is what the mark asked for.
+ */
+function projectedNode(schema: unknown): unknown {
+  const node = schema as {
+    type?: string
+    meta?: Record<string, unknown>
+    inner?: unknown
+    list?: readonly unknown[]
+    dict?: Record<string, unknown>
+  }
+  const meta = { ...(node?.meta ?? {}) }
+  delete meta.volatile
+  return {
+    type: node?.type,
+    ...Object.keys(meta).length === 0 ? {} : { meta },
+    ...node?.dict === undefined
+      ? {}
+      : { dict: Object.fromEntries(Object.entries(node.dict).map(([key, child]) => [key, projectedNode(child)])) },
+    ...node?.inner === undefined ? {} : { inner: projectedNode(node.inner) },
+    ...node?.list === undefined ? {} : { list: node.list.map(projectedNode) },
+  }
+}
+
+/**
+ * The form the settings service offers for one schema: the plugin's fields,
+ * projected to the volatile ones, or the schema itself when it declares none.
+ */
+function projectedForm(schema: unknown): unknown {
+  const node = schema as { dict?: Record<string, unknown> }
+  const fields = Object.entries(node?.dict ?? {}).filter(([, field]) =>
+    (field as { meta?: { volatile?: boolean } }).meta?.volatile === true)
+  if (fields.length === 0) return schema
+  return Object.fromEntries(fields.map(([name, field]) => [name, projectedNode(field)]))
+}
+
+/**
+ * An in-memory `settings` service over one plugin row.
+ *
+ * Mirrors the host service's contract as a plugin sees it: forms describe every
+ * active entry — addressing it by the id a profile patch gives it, and carrying
+ * its projected schema and live value — and a write names one entry id and
+ * merges fields into it. Two behaviours the plugin's persistence depends on
+ * are held to the real service, since a fake that relaxes them looks green
+ * while the deployed write is refused: `value` carries the volatile fields
+ * alone, and a patch naming an ordinary field is rejected whole, the way the
+ * host's `validatePaths` does it.
+ * @param options.schema - the entry's config schema, as the profile holds it.
+ * @param options.value - the plain values the entry resolves to; absent falls
+ *   back to the harness config. A function is read on every call, which lets a
+ *   test play the legacy settings document arriving mid-boot, as the host's
+ *   import does.
+ * @returns the service, every patch it received, and the entry ids they named.
+ */
+export function createFakeSettings(options: {
+  schema?: unknown
+  value?: ConfigOverrides | (() => ConfigOverrides)
+} = {}) {
+  const schema = options.schema ?? plugin.Config
   const updates: object[] = []
-  const registered: { ns: string; base: unknown }[] = []
+  const entryIds: string[] = []
+  const form = formOf(schema)
+  /**
+   * Reduce one layer to the fields the form carries, the projection the host
+   * applies to every value a reader is handed.
+   */
+  const project = (layer: Record<string, unknown>): Record<string, unknown> =>
+    Object.fromEntries(
+      Object.keys(form).flatMap(field => {
+        const value = layer[field]
+        // As the host's projection: an absent field is dropped, not undefined.
+        return value === undefined ? [] : [[field, value]]
+      }),
+    )
   const settings: HostSettings = {
-    register(ns, _schema, options) {
-      registered.push({ ns, base: options?.base })
-      return {
-        get: () => ({ ...(options?.base as Record<string, unknown>), ...stored }),
-        update: async (patch) => {
-          updates.push(patch)
-          Object.assign(stored, patch)
-        },
+    // A profile entry is addressed by the id the profile gave its row, which is
+    // the one a named instance answers to.
+    describe: () => {
+      const held = typeof options.value === 'function' ? options.value() : options.value
+      const merged = { ...held ?? harnessConfig() }
+      const instance = merged.instance
+      return [{
+        ns: typeof instance === 'string' && instance !== '' ? `lark-channel-${instance}` : 'lark-channel',
+        schema: projectedForm(schema),
+        value: project(merged),
+      }]
+    },
+    update: async (entryId, patch) => {
+      // Like the host: a patch may only name volatile fields, and one ordinary
+      // field refuses the whole patch.
+      for (const field of Object.keys(patch as Record<string, unknown>)) {
+        if (!Object.hasOwn(form, field)) throw new Error(`Config field "${field}" is not volatile`)
       }
+      updates.push(patch)
+      entryIds.push(entryId)
     },
   }
-  return { settings, updates, registered }
+  return { settings, updates, entryIds }
+}
+
+/** The volatile fields of one schema, keyed by name. */
+function formOf(schema: unknown): Record<string, unknown> {
+  const dict = (schema as { dict?: Record<string, { meta?: { volatile?: boolean } }> }).dict ?? {}
+  return Object.fromEntries(Object.entries(dict).filter(([, field]) => field.meta?.volatile === true))
 }
 
 /** One node of a card, as the tests need to see it. */
