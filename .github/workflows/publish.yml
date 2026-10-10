@@ -1,7 +1,11 @@
 name: Publish
 
-# Tag-driven release. `npm publish` reads `publishConfig` from package.json,
-# so access and provenance are declared with the package, not here.
+# Tag-driven release. Publishing authenticates through npm trusted publishing
+# (OIDC): no token is stored anywhere, and the run proves it is this
+# repository, this workflow file, and the `npm` environment — the combination
+# registered on the package's npm settings page. `access` and `provenance`
+# stay in package.json's publishConfig, so a local `npm publish` behaves the
+# same.
 on:
   push:
     tags: ['v*']
@@ -9,21 +13,26 @@ on:
 
 permissions:
   contents: write # create the GitHub release for the tag
-  id-token: write # provenance attestation
+  id-token: write # trusted publishing attestation
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: npm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs an npm CLI that can present the OIDC
+      # identity (>= 11.5.1); the one bundled with node 22 predates it.
+      - name: Update npm
+        run: npm install --global npm@11
 
       # Installs devDependencies and runs `prepare`, which emits lib/.
       - run: pnpm install --frozen-lockfile
@@ -44,8 +53,6 @@ jobs:
           fi
 
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # A tag is not a release: the tag drives publishing, and this is what
       # puts the same version on the repository's releases page, with the
