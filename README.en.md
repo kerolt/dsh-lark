@@ -1,6 +1,6 @@
 # dsh-lark · DeepSeek Harness plugin for Feishu / Lark
 
-[![npm](https://img.shields.io/npm/v/dsh-lark-channel)](https://www.npmjs.com/package/dsh-lark-channel) [![CI](https://github.com/omdsh-dev/dsh-lark/actions/workflows/ci.yml/badge.svg)](https://github.com/omdsh-dev/dsh-lark/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@kerolt/dsh-lark-channel)](https://www.npmjs.com/package/@kerolt/dsh-lark-channel) [![CI](https://github.com/kerolt/dsh-lark/actions/workflows/ci.yml/badge.svg)](https://github.com/kerolt/dsh-lark/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 English | [简体中文](README.md)
 
@@ -11,7 +11,7 @@ Hand your agent work from the chat, watch it run, switch workspace and model as 
 ## Quickstart
 
 ```sh
-npm i -g dsh-lark-channel
+npm i -g @kerolt/dsh-lark-channel
 dsh-lark-channel start
 ```
 
@@ -22,7 +22,7 @@ Before the first dependency install, the command writes the profile's pnpm build
 Prefer to install nothing? Run it through npx instead — every later command then carries the same prefix:
 
 ```sh
-npx dsh-lark-channel@latest start
+npx @kerolt/dsh-lark-channel@latest start
 ```
 
 If DeepSeek Harness itself is not installed yet:
@@ -107,7 +107,7 @@ dsh-lark-channel restart
 dsh-lark-channel stop
 ```
 
-Started through npx, those same commands carry the `npx dsh-lark-channel@latest` prefix — the tool prints whichever form you are using, so what you read is what you can paste.
+Started through npx, those same commands carry the `npx @kerolt/dsh-lark-channel@latest` prefix — the tool prints whichever form you are using, so what you read is what you can paste.
 
 To upgrade:
 
@@ -115,7 +115,7 @@ To upgrade:
 dsh-lark-channel upgrade
 ```
 
-That installs the newest CLI and restarts the bot on it. Through npx there is nothing to upgrade — `npx dsh-lark-channel@latest start` already runs the newest — and either way `start` and `status` mention a newer release when one exists.
+That installs the newest CLI and restarts the bot on it. Through npx there is nothing to upgrade — `npx @kerolt/dsh-lark-channel@latest start` already runs the newest — and either way `start` and `status` mention a newer release when one exists.
 
 When the connection drops, the channel rebuilds its WebSocket under a quota and a backoff, so a live process is never a silently dead bot.
 
@@ -140,7 +140,7 @@ Its credential and settings stay, so adding the same name back reaches the same 
 To run Feishu inside the profile `dsh web` already uses:
 
 ```sh
-dsh plugin --profile web add dsh-lark-channel@latest
+dsh plugin --profile web add @kerolt/dsh-lark-channel@latest
 dsh web
 ```
 
@@ -195,5 +195,7 @@ It copies `$DSH_HOME/profiles/lark` into a temporary home, stages this checkout'
 ## License
 
 [BSD-3-Clause](LICENSE)
+
+Forked from [omdsh-dev/dsh-lark](https://github.com/omdsh-dev/dsh-lark) (upstream package [dsh-lark-channel](https://www.npmjs.com/package/dsh-lark-channel)) and published independently as `@kerolt/dsh-lark-channel`, with version numbering restarted at 0.1.0.
 
 An unofficial community plugin, not affiliated with, authorized by, or endorsed by DeepSeek, Feishu, or Lark.

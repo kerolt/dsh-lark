@@ -1,7 +1,7 @@
 {
-  "name": "dsh-lark-channel",
+  "name": "@kerolt/dsh-lark-channel",
   "description": "Lark/Feishu IM bot channel for DeepSeek Harness: chats drive agents, replies and approvals return as messages and cards",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "type": "module",
   "keywords": [
     "dsh",
@@ -56,12 +56,12 @@
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/omdsh-dev/dsh-lark.git"
+    "url": "git+https://github.com/kerolt/dsh-lark.git"
   },
   "bugs": {
-    "url": "https://github.com/omdsh-dev/dsh-lark/issues"
+    "url": "https://github.com/kerolt/dsh-lark/issues"
   },
-  "homepage": "https://github.com/omdsh-dev/dsh-lark#readme",
+  "homepage": "https://github.com/kerolt/dsh-lark#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true

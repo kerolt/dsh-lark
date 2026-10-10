@@ -4005,7 +4005,7 @@ describe('dsh-lark-channel', () => {
 
     const fiber = await ctx.plugin(invariant)
     expect(register).toHaveBeenCalledTimes(1)
-    expect(register.mock.calls[0]?.[0]).toBe('dsh-lark-channel')
+    expect(register.mock.calls[0]?.[0]).toBe('@kerolt/dsh-lark-channel')
     expect(typeof register.mock.calls[0]?.[1]).toBe('function')
 
     await fiber.dispose()

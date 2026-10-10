@@ -6,7 +6,7 @@
 
 - insert:
     - id: lark-channel
-      name: 'dsh-lark-channel'
+      name: '@kerolt/dsh-lark-channel'
       config:
         # Credentials layer as: these entry values (env via `!!js`, never
         # `!js`) → the credential a scan stored → the environment the process
@@ -64,4 +64,4 @@
     # host's runtime-diagnostics composition), and a row waiting on the absent
     # service fails the whole tree at boot. Diagnostic compositions add:
     #   - id: lark-channel-invariant
-    #     name: 'dsh-lark-channel/invariant'
+    #     name: '@kerolt/dsh-lark-channel/invariant'

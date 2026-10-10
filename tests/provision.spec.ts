@@ -550,18 +550,18 @@ describe('how the command spells itself', () => {
   it('answers with the form the caller actually used', () => {
     // Run through npx the binary lives in a throwaway cache, so telling that
     // caller to run a bare `dsh-lark-channel` is telling them to run nothing.
-    expect(invocation('/home/dev/.npm/_npx/abc123/node_modules/dsh-lark-channel/lib/cli.js'))
-      .toBe('npx dsh-lark-channel@latest')
-    expect(invocation('/usr/local/lib/node_modules/dsh-lark-channel/lib/cli.js'))
+    expect(invocation('/home/dev/.npm/_npx/abc123/node_modules/@kerolt/dsh-lark-channel/lib/cli.js'))
+      .toBe('npx @kerolt/dsh-lark-channel@latest')
+    expect(invocation('/usr/local/lib/node_modules/@kerolt/dsh-lark-channel/lib/cli.js'))
       .toBe('dsh-lark-channel')
     // An unknown path is the installed form: the shorter, likelier one.
     expect(invocation('')).toBe('dsh-lark-channel')
   })
 
   it('spells every line of the usage text the same way', () => {
-    const text = usage('npx dsh-lark-channel@latest')
-    expect(text).toContain('npx dsh-lark-channel@latest start')
-    expect(text).toContain('npx dsh-lark-channel@latest add <name>')
+    const text = usage('npx @kerolt/dsh-lark-channel@latest')
+    expect(text).toContain('npx @kerolt/dsh-lark-channel@latest start')
+    expect(text).toContain('npx @kerolt/dsh-lark-channel@latest add <name>')
     expect(text).not.toMatch(/\n {2}dsh-lark-channel /)
   })
 })
@@ -629,10 +629,12 @@ describe('never downgrading a profile', () => {
   })
 
   it('treats a profile ahead of the CLI as newer', () => {
-    // The comparison the guard makes: a bot already running 0.0.6 must not be
-    // pushed back to 0.0.5, whose settings shape predates the credential
-    // reference — it would run, find no credentials, and ask to be set up again.
-    expect(isNewer('0.0.6', ownVersion().replace(/^0\.0\.\d+/, '0.0.5'))).toBe(true)
+    // The comparison the guard makes: a bot already running the patch after
+    // this CLI's own build must not be pushed back to it — the older build's
+    // settings shape predates the credential reference, so it would run, find
+    // no credentials, and ask to be set up again.
+    const ahead = ownVersion().replace(/(\d+)$/, patch => String(Number(patch) + 1))
+    expect(isNewer(ahead, ownVersion())).toBe(true)
     expect(isNewer('0.0.5', '0.0.6')).toBe(false)
   })
 })

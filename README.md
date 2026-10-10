@@ -1,6 +1,6 @@
 # dsh-lark · DeepSeek Harness 飞书 / Lark 插件
 
-[![npm](https://img.shields.io/npm/v/dsh-lark-channel)](https://www.npmjs.com/package/dsh-lark-channel) [![CI](https://github.com/omdsh-dev/dsh-lark/actions/workflows/ci.yml/badge.svg)](https://github.com/omdsh-dev/dsh-lark/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@kerolt/dsh-lark-channel)](https://www.npmjs.com/package/@kerolt/dsh-lark-channel) [![CI](https://github.com/kerolt/dsh-lark/actions/workflows/ci.yml/badge.svg)](https://github.com/kerolt/dsh-lark/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 简体中文 | [English](README.en.md)
 
@@ -11,7 +11,7 @@
 ## 快速开始
 
 ```sh
-npm i -g dsh-lark-channel
+npm i -g @kerolt/dsh-lark-channel
 dsh-lark-channel start
 ```
 
@@ -22,7 +22,7 @@ dsh-lark-channel start
 不想装到全局也可以直接跑，只是之后每条命令都要带 `npx`：
 
 ```sh
-npx dsh-lark-channel@latest start
+npx @kerolt/dsh-lark-channel@latest start
 ```
 
 如果还没有安装 DeepSeek Harness，先运行：
@@ -107,7 +107,7 @@ dsh-lark-channel restart
 dsh-lark-channel stop
 ```
 
-用 `npx` 启动的话，这些命令同样要带 `npx dsh-lark-channel@latest` 前缀——工具会按你实际的启动方式打印提示，读到什么就能直接粘贴。
+用 `npx` 启动的话，这些命令同样要带 `npx @kerolt/dsh-lark-channel@latest` 前缀——工具会按你实际的启动方式打印提示，读到什么就能直接粘贴。
 
 升级：
 
@@ -115,7 +115,7 @@ dsh-lark-channel stop
 dsh-lark-channel upgrade
 ```
 
-它会装上最新的 CLI 并在新版本上重启机器人。用 npx 的话不需要这一步，`npx dsh-lark-channel@latest start` 本来就是最新。有新版本时，`start` 和 `status` 会顺带提醒你一行。
+它会装上最新的 CLI 并在新版本上重启机器人。用 npx 的话不需要这一步，`npx @kerolt/dsh-lark-channel@latest start` 本来就是最新。有新版本时，`start` 和 `status` 会顺带提醒你一行。
 
 连接异常时，插件会在限额和退避控制下自动重建 WebSocket，避免进程仍在但机器人已经静默离线。
 
@@ -140,7 +140,7 @@ dsh-lark-channel remove reviewer
 如果希望飞书和 `dsh web` 共用同一个 profile：
 
 ```sh
-dsh plugin --profile web add dsh-lark-channel@latest
+dsh plugin --profile web add @kerolt/dsh-lark-channel@latest
 dsh web
 ```
 
@@ -195,5 +195,7 @@ pnpm run e2e:settings
 ## License
 
 [BSD-3-Clause](LICENSE)
+
+本项目 fork 自 [omdsh-dev/dsh-lark](https://github.com/omdsh-dev/dsh-lark)（上游 npm 包为 [dsh-lark-channel](https://www.npmjs.com/package/dsh-lark-channel)），以 `@kerolt/dsh-lark-channel` 的名字独立发布与维护，版本号从 0.1.0 重新开始。
 
 本项目是非官方社区插件，与 DeepSeek、飞书或 Lark 不存在隶属、授权或背书关系。

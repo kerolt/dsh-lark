@@ -55,8 +55,8 @@ cpSync(realProfile, profile, {
   filter: source => !source.endsWith('cordis.patch.yml'),
 })
 // A first boot: no credentials and an empty user layer, so a scan is what runs.
-writeFileSync(join(profile, 'cordis.patch.yml'), "- id: lark-channel\n  name: 'dsh-lark-channel'\n")
-const staged = join(profile, 'node_modules', 'dsh-lark-channel')
+writeFileSync(join(profile, 'cordis.patch.yml'), "- id: lark-channel\n  name: '@kerolt/dsh-lark-channel'\n")
+const staged = join(profile, 'node_modules', '@kerolt', 'dsh-lark-channel')
 cpSync(join(repo, 'lib'), join(staged, 'lib'), { recursive: true })
 writeFileSync(join(staged, 'package.json'), readFileSync(join(repo, 'package.json')))
 writeFileSync(join(staged, 'cordis.patch.yml'), readFileSync(join(repo, 'cordis.patch.yml')))
@@ -103,7 +103,7 @@ if (/注册成功/.test(second)) failures.push('the second boot scanned again in
 // settings service kept one document per namespace is still sitting in the
 // home. The host imports it only after the loader settles, so the channel's
 // onboarding decision has to wait for that import rather than ask for a scan.
-writeFileSync(join(profile, 'cordis.patch.yml'), "- id: lark-channel\n  name: 'dsh-lark-channel'\n")
+writeFileSync(join(profile, 'cordis.patch.yml'), "- id: lark-channel\n  name: '@kerolt/dsh-lark-channel'\n")
 rmSync(credentialsPath, { force: true })
 writeFileSync(join(home, 'settings.yaml'), 'lark-channel:\n  appId: cli_legacy\n  appSecret: legacy-secret\n')
 const third = boot()

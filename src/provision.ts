@@ -39,7 +39,7 @@ import { instanceIdentity, refuseInstanceName } from './instance.ts'
 export const DEFAULT_PROFILE = 'lark'
 
 /** Reverse-DNS label shared by the launchd job and the systemd unit. */
-export const SERVICE_LABEL = 'dev.omdsh.dsh-lark'
+export const SERVICE_LABEL = 'com.github.kerolt.dsh-lark'
 
 /** Composition row id this plugin owns, and its section name in the settings document. */
 export const ROW_ID = 'lark-channel'
@@ -127,7 +127,7 @@ export interface ServiceSpec {
  * @returns the command prefix to print.
  */
 export function invocation(scriptPath: string = process.argv[1] ?? ''): string {
-  return scriptPath.includes(`${sep}_npx${sep}`) ? 'npx dsh-lark-channel@latest' : 'dsh-lark-channel'
+  return scriptPath.includes(`${sep}_npx${sep}`) ? 'npx @kerolt/dsh-lark-channel@latest' : 'dsh-lark-channel'
 }
 
 /** Usage text, spelled for the way this process was started. */
@@ -683,12 +683,12 @@ function provision(dsh: string, profile: string, workspace: string): void {
   if (installed !== undefined && isNewer(installed, ownVersion())) {
     throw new Error(
       `profile ${profile} runs ${installed}, newer than this CLI (${ownVersion()}) — `
-      + 'upgrade the CLI first (`npm i -g dsh-lark-channel@latest`) rather than downgrading the bot',
+      + 'upgrade the CLI first (`npm i -g @kerolt/dsh-lark-channel@latest`) rather than downgrading the bot',
     )
   }
   process.stderr.write(`dsh-lark-channel: provisioning profile ${profile}\n`)
   ensureProfileBuildPolicy(profile)
-  must([dsh, 'plugin', '--profile', profile, 'add', `dsh-lark-channel@${ownVersion()}`], workspace)
+  must([dsh, 'plugin', '--profile', profile, 'add', `@kerolt/dsh-lark-channel@${ownVersion()}`], workspace)
 }
 
 /** Whether launchd currently holds the job in this user's domain. */
@@ -871,7 +871,7 @@ export function instanceRow(name: string): string {
   return `${INSTANCE_MARKER} ${name}\n`
     + '- insert:\n'
     + `    - id: lark-channel-${name}\n`
-    + "      name: 'dsh-lark-channel'\n"
+    + "      name: '@kerolt/dsh-lark-channel'\n"
     + '      config:\n'
     + `        instance: ${name}\n`
 }
@@ -990,7 +990,7 @@ function alignPluginVersion(profile: string): void {
   if (installed !== undefined && isNewer(installed, version)) {
     throw new Error(
       `profile ${profile} runs ${installed}, newer than this CLI (${version}) — `
-      + 'upgrade the CLI first (`npm i -g dsh-lark-channel@latest`), or pass --profile for another one',
+      + 'upgrade the CLI first (`npm i -g @kerolt/dsh-lark-channel@latest`), or pass --profile for another one',
     )
   }
   process.stderr.write(
@@ -999,7 +999,7 @@ function alignPluginVersion(profile: string): void {
       : `dsh-lark-channel: profile ${profile} has ${installed}; bringing it to ${version}\n`,
   )
   ensureProfileBuildPolicy(profile)
-  must([dsh, 'plugin', '--profile', profile, 'add', `dsh-lark-channel@${version}`])
+  must([dsh, 'plugin', '--profile', profile, 'add', `@kerolt/dsh-lark-channel@${version}`])
 }
 
 /**
@@ -1009,7 +1009,7 @@ function alignPluginVersion(profile: string): void {
  */
 export function installedPluginVersion(profile: string): string | undefined {
   try {
-    const manifest = join(dshHome(), 'profiles', profile, 'node_modules', 'dsh-lark-channel', 'package.json')
+    const manifest = join(dshHome(), 'profiles', profile, 'node_modules', '@kerolt', 'dsh-lark-channel', 'package.json')
     const version = (JSON.parse(readFileSync(manifest, 'utf8')) as { version?: unknown }).version
     return typeof version === 'string' ? version : undefined
   } catch {
@@ -1088,7 +1088,7 @@ const VERSION_CHECK_MS = 2500
  */
 export async function latestVersion(timeoutMs: number = VERSION_CHECK_MS): Promise<string | undefined> {
   try {
-    const response = await fetch('https://registry.npmjs.org/dsh-lark-channel/latest', {
+    const response = await fetch('https://registry.npmjs.org/@kerolt%2Fdsh-lark-channel/latest', {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { accept: 'application/vnd.npm.install-v1+json' },
     })
@@ -1152,13 +1152,13 @@ async function upgrade(profile: string | undefined, workspace: string | undefine
   }
   if (invocation() !== 'dsh-lark-channel') {
     process.stderr.write(
-      'dsh-lark-channel: nothing to upgrade through npx — `npx dsh-lark-channel@latest start`'
+      'dsh-lark-channel: nothing to upgrade through npx — `npx @kerolt/dsh-lark-channel@latest start`'
       + ' already runs the newest, plugin included\n',
     )
     return
   }
   process.stderr.write('dsh-lark-channel: installing the newest CLI globally\n')
-  must(['npm', 'install', '-g', 'dsh-lark-channel@latest'])
+  must(['npm', 'install', '-g', '@kerolt/dsh-lark-channel@latest'])
   // Re-exec rather than continue: the version that provisions the profile has
   // to be the version just installed, and this process is still the old one.
   process.stderr.write(
