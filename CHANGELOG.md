@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — 2026-10-10
 
 ### Changed
 - The package is published as `@kerolt/dsh-lark-channel`, a personal fork of [`dsh-lark-channel`](https://www.npmjs.com/package/dsh-lark-channel) ([omdsh-dev/dsh-lark](https://github.com/omdsh-dev/dsh-lark), last upstream release 0.0.7). Version numbering restarts at 0.1.0; the upstream history below stays for provenance. Install and upgrade commands take the scoped name, the profile patch row and the invariant registration follow the package name, and the launchd label becomes `com.github.kerolt.dsh-lark` — a job installed under the old label is unloaded once by hand before `start` runs. The executable keeps the name `dsh-lark-channel`, so an upstream copy installed globally must be removed before this one takes its place.
