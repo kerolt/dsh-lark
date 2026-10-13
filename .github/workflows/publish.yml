@@ -34,6 +34,19 @@ jobs:
       - name: Update npm
         run: npm install --global npm@11
 
+      # The identity npm presents is assembled from these, so a publish that
+      # fails authentication says here whether the job was handed an OIDC
+      # endpoint at all, and which npm is doing the presenting.
+      - name: Report the publishing identity
+        run: |
+          npm --version
+          node --version
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "OIDC request endpoint: present"
+          else
+            echo "OIDC request endpoint: MISSING (the job has no id-token permission)"
+          fi
+
       # Installs devDependencies and runs `prepare`, which emits lib/.
       - run: pnpm install --frozen-lockfile
 
@@ -52,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      - run: npm publish
+      - run: npm publish --loglevel verbose
 
       # A tag is not a release: the tag drives publishing, and this is what
       # puts the same version on the repository's releases page, with the
