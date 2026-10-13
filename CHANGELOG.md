@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — 2026-10-13
+
+### Fixed
+- A channel whose first connect fails recovers on its own. The SDK reconnects only a WebSocket that was opened, so an initial failure emits no `reconnecting` for the watchdog to hear and leaves the process alive for `Restart=always` to act on: the bot stayed silent and the log ended at the failure line until a human restarted the service. Boot is where this bites, because a host that reboots for package updates starts the service before the resolver can answer — a DNS answer that was one second late cost the channel seven hours of downtime. `ReconnectWatchdog.onConnectFailed()` now owns that outage: the same rebuild cycle a stalled reconnect takes, entered at once rather than after the deadline, which exists to give the SDK recovery room a transport that never opened does not have. The backoff (30s/60s/120s/300s) and the 30-minute, 10-attempt budget apply unchanged, so a genuinely offline host is not driven into the platform's connection quota. The suite covers the new entry point on its own — immediate retry, recovery through the backoff, no second cycle beside one already running, the budget, and disposal — and through the bridge, where a transport that rejects its first connect opens on the retry behind it.
+
 ## 0.1.0 — 2026-10-10
 
 ### Changed
