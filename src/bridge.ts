@@ -2976,6 +2976,13 @@ export function installBridge(
     port.connect().catch((error: unknown) => {
       notify(`lark-channel: connect failed: ${failureDetail(error)}`)
       ctx.logger.error('lark channel connect failed: %s', error)
+      // Handed to the watchdog rather than left here. A first connect that
+      // fails emits no `reconnecting` — the SDK only reconnects a WebSocket
+      // that was opened — so without this the channel stays down until a
+      // human restarts it, however transient the cause was. Boot is exactly
+      // where that happens: the service starts before the resolver can answer
+      // and the failure outlives the condition that caused it.
+      watchdog.onConnectFailed()
     })
     return () => port.disconnect().catch(reportSendFailure)
   }, 'lark:connect')

@@ -65,7 +65,7 @@ export interface StreamedCard {
 }
 
 /** An in-memory {@link ChannelPort} recording traffic and replaying inbound events. */
-export function createFakePort() {
+export function createFakePort(options: { failConnects?: number } = {}) {
   const messageHandlers: MessageHandler[] = []
   const cardHandlers: CardActionHandler[] = []
   /** Every other subscription, by event name, so a test can replay any inbound event. */
@@ -105,6 +105,12 @@ export function createFakePort() {
   const state = {
     connects: 0,
     disconnects: 0,
+    /**
+     * Connect attempts left to reject. A transport whose first connect fails
+     * is the state a boot-time outage leaves behind, and the one no SDK event
+     * ever reports.
+     */
+    failConnects: options.failConnects ?? 0,
     subscriptions: 0,
     failNextSend: false,
     /** Reject every `stream()` call, as a deployment without card permissions would. */
@@ -155,7 +161,13 @@ export function createFakePort() {
   }
 
   const port: ChannelPort = {
-    async connect() { state.connects += 1 },
+    async connect() {
+      state.connects += 1
+      if (state.failConnects > 0) {
+        state.failConnects -= 1
+        throw new Error('connect failed (fake)')
+      }
+    },
     async disconnect() { state.disconnects += 1 },
     async getChatMembers(chatId) {
       memberLookups.push(chatId)
@@ -761,6 +773,8 @@ export async function mountChannel(
     agentsCanRegisterTools?: boolean
     /** The `credentials` seam the app secret is stored behind. */
     credentials?: object
+    /** Connect attempts the fake transport rejects before it opens. */
+    initialConnectFailures?: number
   } = {},
 ) {
   const ctx = new Context()
@@ -797,7 +811,11 @@ export async function mountChannel(
   if (services.credentials !== undefined) ctx.provide('credentials', services.credentials)
   if (services.commands !== undefined) ctx.provide('commands', services.commands)
   if (services.attachments !== undefined) ctx.provide('attachments', services.attachments)
-  const fake = createFakePort()
+  const fake = createFakePort({
+    ...(services.initialConnectFailures === undefined
+      ? {}
+      : { failConnects: services.initialConnectFailures }),
+  })
   const portConfigs: ChannelConfig[] = []
   const notices: string[] = []
   const originalCreatePort = internals.createPort

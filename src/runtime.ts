@@ -201,6 +201,8 @@ export const internals: {
   legacyImportWindowMs?: number
   /** Reconnect-watchdog deadline override; absent keeps the bridge default. */
   reconnectDeadlineMs?: number
+  /** Reconnect-watchdog rebuild delays; absent keeps the bridge defaults. */
+  reconnectBackoffMs?: readonly number[]
   /** How an onboarded secret is stored; substituted in tests. */
   storeSecret: typeof storeAppSecret
 } = {
@@ -261,7 +263,10 @@ export function apply(ctx: Context, config: RawConfig): void {
       internals.notify,
       authorization,
       persistState,
-      internals.reconnectDeadlineMs === undefined ? undefined : { deadlineMs: internals.reconnectDeadlineMs },
+      {
+        ...(internals.reconnectDeadlineMs === undefined ? {} : { deadlineMs: internals.reconnectDeadlineMs }),
+        ...(internals.reconnectBackoffMs === undefined ? {} : { backoffMs: internals.reconnectBackoffMs }),
+      },
     )
   }
 

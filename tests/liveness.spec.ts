@@ -201,4 +201,60 @@ describe('reconnect watchdog', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(retrying.rebuilds).toHaveLength(1)
   })
+
+  it('opens the transport at once when the first connect failed', async () => {
+    const { watchdog, reports, rebuilds } = build()
+    watchdog.onConnectFailed()
+    await flush()
+    expect(rebuilds).toHaveLength(1)
+    expect(reports.join('\n')).toContain('the first connect failed')
+  })
+
+  it('carries a failed first connect through the backoff to a recovery', async () => {
+    const { watchdog, reports, rebuilds } = build({ backoffMs: [100] })
+    watchdog.onConnectFailed()
+    await flush()
+    expect(rebuilds).toHaveLength(1)
+    rebuilds[0]!.reject(new Error('still down'))
+    await flush()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(rebuilds).toHaveLength(2)
+    rebuilds[1]!.resolve()
+    await flush()
+    expect(reports.join('\n')).toContain('rebuilt the transport after 2 attempt')
+  })
+
+  it('leaves an outage already being handled to finish it', async () => {
+    const { watchdog, rebuilds } = build()
+    watchdog.onConnectFailed()
+    await flush()
+    watchdog.onConnectFailed()
+    await flush()
+    expect(rebuilds).toHaveLength(1)
+  })
+
+  it('budgets a failed first connect like any other rebuild', async () => {
+    const { watchdog, reports, rebuilds } = build({
+      backoffMs: [100],
+      quota: { windowMs: 10_000, limit: 1 },
+    })
+    watchdog.onConnectFailed()
+    await flush()
+    rebuilds[0]!.reject(new Error('down'))
+    await flush()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(rebuilds).toHaveLength(1)
+    expect(reports.join('\n')).toContain('rebuild budget exhausted')
+  })
+
+  it('a failed first connect stops retrying once disposed', async () => {
+    const { watchdog, rebuilds } = build({ backoffMs: [100] })
+    watchdog.onConnectFailed()
+    await flush()
+    rebuilds[0]!.reject(new Error('down'))
+    await flush()
+    watchdog.dispose()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(rebuilds).toHaveLength(1)
+  })
 })

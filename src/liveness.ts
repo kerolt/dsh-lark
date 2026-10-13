@@ -113,6 +113,19 @@ export interface ReconnectWatchdog {
   onReconnecting(): void
   /** The transport recovered; whichever cycle was open stands down. */
   onReconnected(): void
+  /**
+   * The transport's FIRST connect failed; nothing is recovering underneath.
+   *
+   * The SDK's own recovery loop exists only under a connection that was once
+   * opened, so an initial failure — a name that does not resolve yet, a
+   * network that is not up yet at boot — produces no `reconnecting` for this
+   * watchdog to hear and no terminal state for a restart policy to catch. The
+   * bot is silent and the log simply ends at the failure line until a human
+   * restarts the service. This entry point owns that outage: the same rebuild
+   * cycle a stalled reconnect takes, started at once because there is no SDK
+   * room to give.
+   */
+  onConnectFailed(): void
   /** Stop all timers; the watchdog never acts again. */
   dispose(): void
 }
@@ -234,6 +247,16 @@ export function createReconnectWatchdog(options: WatchdogOptions): ReconnectWatc
       const wasActing = phase === 'rebuilding' || phase === 'quarantined'
       settle()
       if (wasActing) options.report('lark-channel: transport recovered; watchdog standing down')
+    },
+    onConnectFailed() {
+      // No deadline wait: that wait gives the SDK's own recovery loop room it
+      // does not have here, since a transport that never opened has nothing
+      // to recover. A cycle already in flight owns the outage and is left to
+      // finish it, so a repeated report cannot stack duplicate rebuilds.
+      if (disposed || phase !== 'idle') return
+      phase = 'rebuilding'
+      options.report('lark-channel: the first connect failed; the watchdog is opening the transport')
+      void attemptRebuild()
     },
     dispose() {
       disposed = true

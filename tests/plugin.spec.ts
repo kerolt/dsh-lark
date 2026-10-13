@@ -3997,6 +3997,29 @@ describe('dsh-lark-channel', () => {
     }
   })
 
+  it('opens the transport again when the first connect fails', async () => {
+    const { internals } = await import('../src/runtime.ts')
+    // The production backoff starts at 30s; a test may not wait it out.
+    internals.reconnectBackoffMs = [1500]
+    try {
+      // Two failures: the mount's own connect, then the rebuild the watchdog
+      // starts at once. What opens the transport is the retry behind the
+      // backoff — the recovery a boot-time outage depends on, with no SDK
+      // event behind it and no restart policy able to see it.
+      const harness = await mountChannel({}, { initialConnectFailures: 2 })
+      await vi.waitFor(() => { expect(harness.fake.state.connects).toBe(3) }, { timeout: 5000 })
+      // Each rebuild tears the transport down before opening it again.
+      expect(harness.fake.state.disconnects).toBe(2)
+      const notices = harness.notices.join('\n')
+      expect(notices).toContain('connect failed')
+      expect(notices).toContain('the first connect failed')
+      expect(notices).toContain('rebuilt the transport')
+      await harness.dispose()
+    } finally {
+      delete internals.reconnectBackoffMs
+    }
+  })
+
   it('registers the invariant companion through its local host contract', async () => {
     const ctx = new Context()
     const unregister = vi.fn()
